@@ -264,8 +264,8 @@ export const RPC_ERROR_CODES = {
   internalError: -32603,
 } as const satisfies Readonly<Record<string, number>>;
 
-/** Escenarios de error reproducibles para mocks de Fase 3. */
-export const MOCK_ERRORS: Readonly<Record<string, Eip1193Error>> = {
+/** Escenarios de error reproducibles para mocks (claves tipadas). */
+export const MOCK_ERRORS = {
   /** Firma/personal_sign rechazada por el usuario (estándar EIP-1193). */
   userRejectedRequest: {
     code: RPC_ERROR_CODES.userRejected,
@@ -294,4 +294,9 @@ export const MOCK_ERRORS: Readonly<Record<string, Eip1193Error>> = {
     code: RPC_ERROR_CODES.internalError,
     message: 'Request timed out.',
   },
-};
+  /** Método fuera del switch del provider mockeado (4200). */
+  methodNotSupported: {
+    code: RPC_ERROR_CODES.unsupportedMethod,
+    message: 'The requested method is not supported by this provider.',
+  },
+} satisfies Readonly<Record<string, Eip1193Error>>;

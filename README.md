@@ -18,7 +18,7 @@ El plan completo de fases y decisiones está en [`docs/plan.md`](docs/plan.md).
 | ---- | ----------------------------------------------------------------------- | --------- |
 | 1    | Base del proyecto, tooling de calidad, config de Playwright             | ✅        |
 | 2    | Config de entorno y datos deterministas (`env`, `networks`, `mockData`) | ✅        |
-| 3    | Wallet EIP-1193 simulada + capa blockchain (viem)                       | pendiente |
+| 3    | Wallet EIP-1193 simulada + capa blockchain (viem)                       | ✅        |
 | 4    | Page Objects y componentes                                              | pendiente |
 | 5    | API y red determinista (`routes.ts`, cliente CoinGecko)                 | pendiente |
 | 6    | Suites funcionales (`@smoke`, `@e2e`, `@api`, `@web3`)                  | pendiente |
@@ -40,13 +40,44 @@ npm test             # requiere specs (Fases 5-6)
 Copiar `.env.example` a `.env` (no se versiona; ver variables documentadas ahí).
 La configuración se valida de forma tipada en `src/config/env.ts` y las redes en `src/config/networks.ts`.
 
-## Estructura (Fases 1-2 en curso)
+## Fixture de wallet (Fase 3)
+
+`web3Page` inyecta un provider `window.ethereum` compatible EIP-1193 con `addInitScript`
+antes de que la DApp cargue. Cada test elige su escenario con presets deterministas:
+
+```ts
+import { expect, test } from '../../src/fixtures/web3Fixture';
+import { rejectingTransaction } from '../../src/fixtures/walletScenarios';
+
+test.describe('flujo de pago', () => {
+  test.use({ walletState: rejectingTransaction() }); // 4010 del spec
+
+  test('la DApp muestra el error de rechazo', async ({ web3Page }) => {
+    await web3Page.openMockDApp(); // sandbox sin target real
+    const error = await web3Page.requestCapturingError('eth_sendTransaction');
+    expect(error?.code).toBe(4010);
+  });
+});
+```
+
+Presets disponibles: `connectedWallet`, `lockedWallet`, `approvingConnectWallet`,
+`rejectingTransaction` (4010), `rejectingSignature` (4001), `insufficientFundsWallet`
+(-32000), `wrongNetwork(red)`, `highLatencyWallet(ms)` y `unresponsiveWallet(métodos)`
+(timeout de red). Control en caliente: `configureWallet`, `emitWalletEvent`, `state`.
+
+## Estructura (Fase 3 en curso)
 
 ```text
-src/config/env.ts        # variables de entorno validadas + timeouts
-src/config/networks.ts   # catálogo de cadenas (chain IDs, RPC, explorers)
-src/utils/mockData.ts    # address/tx/saldos/tokens/precios/errores deterministas
-tests/{e2e,api,web3}/    # suites (se llenan en Fases 5-6)
+src/config/env.ts            # variables de entorno validadas + timeouts
+src/config/networks.ts       # catálogo de cadenas (chain IDs, RPC, explorers)
+src/fixtures/eip1193.ts      # contrato EIP-1193 tipado + script de inyección
+src/fixtures/walletScenarios.ts  # presets deterministas de wallet
+src/fixtures/web3Fixture.ts  # fixture `web3Page` (inyección + canal de control)
+src/blockchain/rpc.client.ts # cliente viem (acciones en viem/actions)
+src/blockchain/contracts.ts  # ERC-20: balanceOf, metadata, Transfer
+src/blockchain/transaction.ts # validez de hashes + receipts resumidos
+src/utils/mockData.ts        # address/tx/saldos/tokens/precios/errores deterministas
+tests/web3/provider-injection.spec.ts # contrato del provider mockeado (10 casos)
 ```
 
 ## Determinismo
