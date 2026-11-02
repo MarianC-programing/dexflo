@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+
+# Artefactos de Playwright (reportes, trazas, vídeos, cifras de rendimiento)
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+results/
+
+# Cobertura y builds locales de utilidades
+coverage/
+dist/
+tmp/
+
+# Cachés de linters
+.eslintcache
+.prettiercache
+
+# Entorno: nunca se versionan secretos (claves privadas de wallet, RPC con llaves)
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+*.log
+
+# Internos de husky (shims generados en la instalación)
+.husky/_/

@@ -1,0 +1,34 @@
+{
+  "root": true,
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module",
+    "projectService": true
+  },
+  "plugins": ["@typescript-eslint", "playwright"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/strict-type-checked", "prettier"],
+  "rules": {
+    "@typescript-eslint/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
+    "@typescript-eslint/consistent-type-definitions": ["error", "interface"],
+    "@typescript-eslint/restrict-template-expressions": ["error", { "allowNumber": true }],
+
+    "playwright/no-wait-for-timeout": "error",
+    "playwright/no-wait-for-selector": "error",
+    "playwright/no-page-pause": "error",
+    "playwright/no-force-option": "warn"
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "dist/",
+    "coverage/",
+    "playwright-report/",
+    "test-results/",
+    "blob-report/",
+    "results/"
+  ]
+}
