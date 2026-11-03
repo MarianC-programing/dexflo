@@ -13,6 +13,7 @@
     "test:e2e": "playwright test tests/e2e",
     "test:api": "playwright test tests/api",
     "test:web3": "playwright test tests/web3",
+    "test:unit": "playwright test tests/unit",
     "test:ui": "playwright test --ui",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --fix --ext .ts",

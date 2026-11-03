@@ -27,9 +27,15 @@ export interface AppConfig {
   readonly networkName: NetworkName;
   /** chainId derivado de la red objetivo. */
   readonly chainId: number;
+  /** Opt-in explícito para operar contra mainnet (ALLOW_MAINNET); false por defecto. */
+  readonly allowMainnet: boolean;
   /** RPC opcional para pruebas @web3 (Fase 3+); null si no se configura. */
   readonly rpcUrl: string | null;
-  /** Clave privada de wallet EFÍMERA; null si no se configura. Nunca se loguea. */
+  /**
+   * Clave privada de wallet EFÍMERA; null si no se configura. Solo se acepta con
+   * un RPC local (fork/Anvil). Propiedad NO enumerable: no sale en
+   * `JSON.stringify(env)`, spreads ni `console.log(env)`. Nunca se loguea.
+   */
   readonly privateKey: string | null;
   /** Headless por defecto; sobrescribible por CLI (`--headed`). */
   readonly headless: boolean;
@@ -97,18 +103,35 @@ function readEnvBoolean(
   );
 }
 
-function assertHttpUrl(value: string, variableName: string): void {
+const LOCAL_HOSTNAMES = new Set<string>(['localhost', '127.0.0.1', '[::1]']);
+const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
+
+/**
+ * Valida una URL HTTP(S) sin credenciales embebidas. Los mensajes de error NO
+ * repiten el valor recibido: una URL de RPC puede llevar la API key en la ruta.
+ */
+function parseHttpUrl(value: string, variableName: string): URL {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(value);
   } catch {
-    throw new Error(`[env] "${variableName}" no es una URL válida: "${value}".`);
+    throw new Error(`[env] "${variableName}" no es una URL válida.`);
   }
   if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
     throw new Error(
       `[env] "${variableName}" debe usar HTTP/HTTPS; protocolo inválido: "${parsedUrl.protocol}".`,
     );
   }
+  if (parsedUrl.username.length > 0 || parsedUrl.password.length > 0) {
+    throw new Error(
+      `[env] "${variableName}" no debe incluir usuario ni contraseña en la URL; usa secretos de entorno.`,
+    );
+  }
+  return parsedUrl;
+}
+
+function isLocalUrl(url: URL): boolean {
+  return LOCAL_HOSTNAMES.has(url.hostname);
 }
 
 /**
@@ -119,9 +142,10 @@ function assertHttpUrl(value: string, variableName: string): void {
  */
 export function loadConfig(source: Readonly<NodeJS.ProcessEnv> = process.env): AppConfig {
   const baseUrl = readEnvString(source, 'BASE_URL', 'https://app.uniswap.org');
-  assertHttpUrl(baseUrl, 'BASE_URL');
+  parseHttpUrl(baseUrl, 'BASE_URL');
 
-  const networkRawName = readEnvString(source, 'NETWORK', 'mainnet');
+  // Red por defecto: testnet. Mainnet exige opt-in explícito (ALLOW_MAINNET).
+  const networkRawName = readEnvString(source, 'NETWORK', 'sepolia');
   if (!isNetworkName(networkRawName)) {
     throw new Error(
       `[env] "NETWORK" desconocida: "${networkRawName}". Redes soportadas: ${NETWORK_NAMES.join(', ')}.`,
@@ -129,12 +153,34 @@ export function loadConfig(source: Readonly<NodeJS.ProcessEnv> = process.env): A
   }
   const network = getNetwork(networkRawName);
 
-  return {
+  const allowMainnet = readEnvBoolean(source, 'ALLOW_MAINNET', false);
+  if (network.name === 'mainnet' && !allowMainnet) {
+    throw new Error(
+      '[env] NETWORK=mainnet requiere ALLOW_MAINNET=true. La suite es determinista y no debe tocar mainnet por accidente.',
+    );
+  }
+
+  const rpcUrl = readEnvOptional(source, 'RPC_URL');
+  const rpcParsed = rpcUrl === null ? null : parseHttpUrl(rpcUrl, 'RPC_URL');
+
+  const privateKey = readEnvOptional(source, 'PRIVATE_KEY');
+  if (privateKey !== null) {
+    if (!PRIVATE_KEY_PATTERN.test(privateKey)) {
+      throw new Error('[env] "PRIVATE_KEY" no tiene formato válido (32 bytes hex).');
+    }
+    if (rpcParsed === null || !isLocalUrl(rpcParsed)) {
+      throw new Error(
+        '[env] "PRIVATE_KEY" solo se acepta con RPC_URL local (localhost/127.0.0.1): usa un fork/Anvil efímero.',
+      );
+    }
+  }
+
+  const config: Omit<AppConfig, 'privateKey'> = {
     baseUrl,
     networkName: network.name,
     chainId: network.chainId,
-    rpcUrl: readEnvOptional(source, 'RPC_URL'),
-    privateKey: readEnvOptional(source, 'PRIVATE_KEY'),
+    allowMainnet,
+    rpcUrl,
     headless: readEnvBoolean(source, 'HEADLESS', true),
     isCi: readEnvBoolean(source, 'CI', false),
     timeouts: {
@@ -144,6 +190,13 @@ export function loadConfig(source: Readonly<NodeJS.ProcessEnv> = process.env): A
       expectMs: readEnvPositiveInt(source, 'EXPECT_TIMEOUT_MS', 10_000),
     },
   };
+  // No enumerable: queda fuera de JSON.stringify, spreads y console.log.
+  Object.defineProperty(config, 'privateKey', {
+    value: privateKey,
+    enumerable: false,
+    writable: false,
+  });
+  return config as AppConfig;
 }
 
 /** Configuración validada de la sesión en curso (memoizada por importación). */
