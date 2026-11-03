@@ -32,13 +32,17 @@ npx playwright install chromium
 npm run typecheck    # valida tipos estrictos
 npm run lint         # eslint (reglas type-checked + playwright)
 npm run format:check # prettier
-npm test             # requiere specs (Fases 5-6)
+npm run test:unit    # config y guards de seguridad
+npm run test:web3    # provider EIP-1193 mockeado
+npm test             # toda la suite
 ```
 
 ## Configuración
 
 Copiar `.env.example` a `.env` (no se versiona; ver variables documentadas ahí).
 La configuración se valida de forma tipada en `src/config/env.ts` y las redes en `src/config/networks.ts`.
+
+Valores seguros por defecto: `NETWORK=sepolia`; `mainnet` exige `ALLOW_MAINNET=true`. `PRIVATE_KEY` solo se acepta con un `RPC_URL` local (fork/Anvil) y las URLs no admiten credenciales embebidas. Detalles y pendientes en [`docs/SECURITY.md`](docs/SECURITY.md); estado de sesión en [`docs/CONTEXT.md`](docs/CONTEXT.md).
 
 ## Fixture de wallet (Fase 3)
 
@@ -78,6 +82,7 @@ src/blockchain/contracts.ts  # ERC-20: balanceOf, metadata, Transfer
 src/blockchain/transaction.ts # validez de hashes + receipts resumidos
 src/utils/mockData.ts        # address/tx/saldos/tokens/precios/errores deterministas
 tests/web3/provider-injection.spec.ts # contrato del provider mockeado (10 casos)
+tests/unit/env.spec.ts       # config y guards de seguridad (15 casos)
 ```
 
 ## Determinismo

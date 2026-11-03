@@ -18,7 +18,7 @@ import { waitForTransactionReceipt } from 'viem/actions';
 import { arbitrum, base, mainnet, optimism, polygon, sepolia } from 'viem/chains';
 
 import { env } from '../config/env';
-import type { NetworkName } from '../config/networks';
+import { NETWORKS, type NetworkName } from '../config/networks';
 
 /** Adaptador de red: nombre interno → definición de cadena de viem. */
 export const VIEM_CHAIN_BY_NETWORK: Readonly<Record<NetworkName, Chain>> = Object.freeze({
@@ -32,10 +32,19 @@ export const VIEM_CHAIN_BY_NETWORK: Readonly<Record<NetworkName, Chain>> = Objec
 
 const DEFAULT_RPC_TIMEOUT_MS = 20_000;
 
+/** Bloquea mainnet salvo opt-in explícito (ALLOW_MAINNET=true). */
+export function assertNetworkAllowed(networkName: NetworkName): void {
+  if (networkName === 'mainnet' && !env.allowMainnet) {
+    throw new Error(
+      '[rpc] Mainnet bloqueada: define ALLOW_MAINNET=true para usarla de forma explícita.',
+    );
+  }
+}
+
 export interface PublicClientOptions {
   /** Red objetivo; por defecto la de env.ts. */
   readonly networkName?: NetworkName;
-  /** RPC con prioridad sobre env.rpcUrl y el RPC público de la red. */
+  /** RPC con prioridad sobre env.rpcUrl y el RPC público del catálogo de redes. */
   readonly rpcUrl?: string;
   /** Timeout por request; por defecto {@link DEFAULT_RPC_TIMEOUT_MS}. */
   readonly timeoutMs?: number;
@@ -43,15 +52,17 @@ export interface PublicClientOptions {
 
 export function createDexfloPublicClient(options: PublicClientOptions = {}): PublicClient {
   const networkName = options.networkName ?? env.networkName;
+  assertNetworkAllowed(networkName);
   const chain = VIEM_CHAIN_BY_NETWORK[networkName];
 
   const rpcUrl = options.rpcUrl ?? env.rpcUrl;
-  const effectiveRpcUrl = rpcUrl !== null && rpcUrl.length > 0 ? rpcUrl : undefined;
+  // Sin RPC explícito se usa el RPC público del catálogo (src/config/networks.ts),
+  // no el default de viem: así catálogo y cliente no divergen.
+  const effectiveRpcUrl =
+    rpcUrl !== null && rpcUrl.length > 0 ? rpcUrl : NETWORKS[networkName].rpcUrl;
   const timeoutMs = options.timeoutMs ?? DEFAULT_RPC_TIMEOUT_MS;
 
-  const transport = effectiveRpcUrl
-    ? http(effectiveRpcUrl, { timeout: timeoutMs })
-    : http(undefined, { timeout: timeoutMs });
+  const transport = http(effectiveRpcUrl, { timeout: timeoutMs });
 
   return createPublicClient({ chain, transport });
 }

@@ -22,6 +22,12 @@ tmp/
 .env.*
 !.env.example
 
+# Material criptográfico y credenciales de registry
+*.pem
+*.key
+*.keystore
+.npmrc
+
 # Sistema / editor
 .DS_Store
 *.log

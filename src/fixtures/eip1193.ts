@@ -149,7 +149,7 @@ export function injectEip1193Provider(bootstrap: Eip1193MockBootstrap): void {
     },
   ];
 
-  const sameAddress = (left: string | null, right: string): boolean => {
+  const sameHex = (left: string | null, right: string): boolean => {
     if (left === null) {
       return false;
     }
@@ -223,7 +223,7 @@ export function injectEip1193Provider(bootstrap: Eip1193MockBootstrap): void {
         const targetChainIdHex = switchTargetChainId(params[0]);
         // A la misma cadena: aceptar (null). A otra: rechazar como lo hace un
         // usuario real ⇒ la DApp permanece en "red incorrecta" (determinista).
-        if (!targetChainIdHex || sameAddress(targetChainIdHex, state.chainIdHex)) {
+        if (!targetChainIdHex || sameHex(targetChainIdHex, state.chainIdHex)) {
           return null;
         }
         throw providerError(errors.userRejected);
@@ -251,8 +251,8 @@ export function injectEip1193Provider(bootstrap: Eip1193MockBootstrap): void {
         return rpc.blockNumberHex;
       case 'eth_getBalance': {
         const requested = typeof params[0] === 'string' ? params[0] : null;
-        const isWallet = sameAddress(requested, state.address ?? '_____');
-        const isAnchor = sameAddress(requested, rpc.primaryAddressHex);
+        const isWallet = sameHex(requested, state.address ?? '_____');
+        const isAnchor = sameHex(requested, rpc.primaryAddressHex);
         return isWallet || isAnchor ? rpc.nativeBalanceHex : rpc.zeroBalanceHex;
       }
       case 'eth_getTransactionReceipt':
