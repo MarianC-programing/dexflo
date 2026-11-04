@@ -120,3 +120,17 @@ test.describe('@unit rpc.client — guard de mainnet', () => {
     expect(client.transport.url).toBe('https://ethereum-sepolia-rpc.publicnode.com');
   });
 });
+
+test.describe('@unit loadConfig — DAPP_TARGET', () => {
+  test('usa la sandbox por defecto', () => {
+    expect(loadConfig({}).dappTarget).toBe('sandbox');
+  });
+
+  test('acepta uniswap como target de referencia', () => {
+    expect(loadConfig({ DAPP_TARGET: 'uniswap' }).dappTarget).toBe('uniswap');
+  });
+
+  test('rechaza targets desconocidos', () => {
+    expect(() => loadConfig({ DAPP_TARGET: 'sushiswap' })).toThrow(/DAPP_TARGET/);
+  });
+});
