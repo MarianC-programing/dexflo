@@ -1,66 +1,26 @@
 /**
- * Contrato de los Page Objects de la Fase 4 contra la sandbox local.
- * Valida `SwapPage` + `WalletModal` + `DexAdapter`; las suites funcionales de
- * negocio (connect-wallet, swap-tokens) llegan en la Fase 6 sobre esta base.
+ * Suite funcional @e2e de swap de tokens (Fase 6, docs/plan.md): cotización,
+ * habilitación del botón, emisión del hash y estado final, además de los
+ * escenarios de error pactados (rechazo 4010, -32000 y timeout de red).
+ *
+ * Reemplaza al spec provisional de la Fase 4 (`page-objects.spec.ts`,
+ * retirado). El feed de precios se intercepta con los overlays EXACTOS de
+ * `src/network/routes.ts` (Fase 5) para simular alimentación caída sin
+ * tocar el resto de las rutas del adapter.
  */
 
-import { createSandboxAdapter } from '../../src/domain/adapters';
 import { test } from '../../src/fixtures/dappFixture';
+import { interceptPrices } from '../../src/network/routes';
 import {
-  approvingConnectWallet,
   connectedWallet,
   insufficientFundsWallet,
-  lockedWallet,
   rejectingTransaction,
   unresponsiveWallet,
-  wrongNetwork,
 } from '../../src/fixtures/walletScenarios';
 import { MOCK_ADDRESS, MOCK_TX_HASH, RPC_METHODS } from '../../src/utils/mockData';
+import { createSandboxAdapter } from '../../src/domain/adapters';
 
-test.describe('@e2e @smoke Page Objects — conexión de wallet', () => {
-  test.use({ walletState: approvingConnectWallet() });
-
-  test('abre el modal, conecta la wallet inyectada y muestra la dirección', async ({
-    swapPage,
-  }) => {
-    await swapPage.open();
-    await swapPage.expectButtonState('connect');
-    await swapPage.wallet.expectDisconnected();
-
-    await swapPage.wallet.open();
-    await swapPage.wallet.connectWithInjectedWallet();
-
-    await swapPage.wallet.expectConnected(MOCK_ADDRESS);
-    await swapPage.wallet.expectChainLabel('0x1');
-    await swapPage.expectButtonState('enter-amount');
-    swapPage.expectNoPageErrors();
-  });
-
-  test('el modal se puede cerrar sin conectar', async ({ swapPage }) => {
-    await swapPage.open();
-    await swapPage.wallet.open();
-    await swapPage.wallet.close();
-    await swapPage.wallet.expectDisconnected();
-  });
-});
-
-test.describe('@e2e Page Objects — wallet bloqueada', () => {
-  test.use({ walletState: lockedWallet() });
-
-  test('sin autorización muestra el error en el modal y sigue desconectada', async ({
-    swapPage,
-  }) => {
-    await swapPage.open();
-    await swapPage.wallet.open();
-    await swapPage.wallet.connectWithInjectedWallet();
-
-    await swapPage.wallet.expectError('No accounts authorized');
-    await swapPage.wallet.expectOpen();
-    await swapPage.wallet.expectDisconnected();
-  });
-});
-
-test.describe('@e2e @smoke Page Objects — swap con wallet conectada', () => {
+test.describe('@e2e @smoke Swap de tokens — flujo completo', () => {
   test.use({ walletState: connectedWallet() });
 
   test('reconecta sola, cotiza y emite el hash con estado final confirmado', async ({
@@ -88,21 +48,40 @@ test.describe('@e2e @smoke Page Objects — swap con wallet conectada', () => {
 
   test('sin importe el botón pide ingresar una cantidad', async ({ swapPage }) => {
     await swapPage.open();
+    await swapPage.enterAmount('');
     await swapPage.expectButtonState('enter-amount');
   });
-});
 
-test.describe('@e2e Page Objects — red incorrecta', () => {
-  test.use({ walletState: wrongNetwork('base') });
+  test('el error del feed de precios (HTTP 500) deja el botón en fetching-quote', async ({
+    swapPage,
+  }) => {
+    await swapPage.open(undefined, {
+      overlayNetwork: (page) => interceptPrices(page, { status: 500 }),
+    });
+    await swapPage.wallet.expectConnected(MOCK_ADDRESS);
+    await swapPage.enterAmount('1');
 
-  test('el botón indica red incorrecta y muestra la cadena de la wallet', async ({ swapPage }) => {
-    await swapPage.open();
-    await swapPage.expectButtonState('wrong-network');
-    await swapPage.wallet.expectChainLabel('0x2105');
+    await swapPage.expectButtonState('fetching-quote');
+    await swapPage.expectQuote('');
+    await swapPage.expectRate('');
+  });
+
+  test('un feed abortado (timeout de red) no rompe la DApp y sigue sin cotizar', async ({
+    swapPage,
+  }) => {
+    await swapPage.open(undefined, {
+      overlayNetwork: (page) => interceptPrices(page, { abort: true }),
+    });
+    await swapPage.wallet.expectConnected(MOCK_ADDRESS);
+    await swapPage.enterAmount('1');
+
+    await swapPage.expectButtonState('fetching-quote');
+    await swapPage.expectQuote('');
+    await swapPage.expectRate('');
   });
 });
 
-test.describe('@e2e Page Objects — transacción rechazada (4010)', () => {
+test.describe('@e2e Swap de tokens — transacción rechazada (4010)', () => {
   test.use({ walletState: rejectingTransaction() });
 
   test('muestra el error 4010 y deja el estado en fallido', async ({ swapPage }) => {
@@ -116,7 +95,7 @@ test.describe('@e2e Page Objects — transacción rechazada (4010)', () => {
   });
 });
 
-test.describe('@e2e Page Objects — saldo insuficiente para gas (-32000)', () => {
+test.describe('@e2e Swap de tokens — saldo insuficiente para gas (-32000)', () => {
   test.use({ walletState: insufficientFundsWallet() });
 
   test('muestra el error -32000 de la wallet', async ({ swapPage }) => {
@@ -129,7 +108,7 @@ test.describe('@e2e Page Objects — saldo insuficiente para gas (-32000)', () =
   });
 });
 
-test.describe('@e2e Page Objects — timeout de red', () => {
+test.describe('@e2e Swap de tokens — timeout de red', () => {
   test.use({
     walletState: unresponsiveWallet([RPC_METHODS.ethSendTransaction]),
     adapter: createSandboxAdapter({ requestTimeoutMs: 300 }),

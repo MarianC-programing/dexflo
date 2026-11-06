@@ -217,7 +217,10 @@ const SANDBOX_SCRIPT = `
   }
 
   fetch('${SANDBOX_PRICES_PATH}')
-    .then(function (response) { return response.json(); })
+    .then(function (response) {
+      if (!response.ok) { throw new Error('HTTP ' + response.status); }
+      return response.json();
+    })
     .then(function (prices) { state.prices = prices; render(); })
     .catch(function () { render(); });
 

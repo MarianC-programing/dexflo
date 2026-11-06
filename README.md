@@ -21,7 +21,7 @@ El plan completo de fases y decisiones está en [`docs/plan.md`](docs/plan.md).
 | 3    | Wallet EIP-1193 simulada + capa blockchain (viem)                       | ✅        |
 | 4    | Page Objects, adapters y sandbox DEX local                              | ✅        |
 | 5    | API y red determinista (`routes.ts`, cliente CoinGecko)                 | ✅        |
-| 6    | Suites funcionales (`@smoke`, `@e2e`, `@api`, `@web3`)                  | pendiente |
+| 6    | Suites funcionales (`@smoke`, `@e2e`, `@api`, `@web3`)                  | ✅        |
 | 7    | CI/CD (GitHub Actions) y documentación completa                         | pendiente |
 
 ## Puesta en marcha
@@ -126,8 +126,10 @@ src/domain/adapters/         # contrato DexAdapter + adapters sandbox y uniswap
 src/domain/sandbox/          # mini-DEX local (HTML + selectores)
 src/page-objects/            # base.page, wallet-modal.component, swap.page
 src/fixtures/dappFixture.ts  # fixtures `adapter` y `swapPage`
+tests/e2e/connect-wallet.spec.ts  # conexión de wallet: modal/dirección/chain ID (6 casos)
+tests/e2e/swap-tokens.spec.ts     # swap: cotización/hash/4010/-32000/timeout (8 casos)
 tests/web3/provider-injection.spec.ts # contrato del provider mockeado (10 casos)
-tests/e2e/page-objects.spec.ts # Page Objects contra la sandbox (10 casos)
+tests/web3/transaction-state.spec.ts  # hash/receipt/balance/eventos (3 + 1 contractual)
 tests/unit/env.spec.ts       # config y guards de seguridad (18 casos)
 tests/unit/adapters.spec.ts  # contrato de adapters (5 casos)
 tests/api/token-prices.spec.ts # contrato del cliente de precios (19 casos + 1 contractual)

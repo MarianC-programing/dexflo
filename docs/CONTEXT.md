@@ -15,9 +15,9 @@ Seguridad: `docs/SECURITY.md`.
 | 1-2  | Base, tooling, `env`, `networks`, `mockData`        | Hecho                                    |
 | 3    | Provider EIP-1193 simulado + capa blockchain (viem) | Hecho                                    |
 | —    | Revisión de seguridad de fases 1-3 (`SECURITY.md`)  | Hecho (rama `fix/security-review-fase3`) |
-| 4    | Page Objects, adapters y sandbox DEX local          | Hecho (`c05d8e2`)                        |
+| 4    | Page Objects, adapters y sandbox DEX y componentes  | Hecho (`c05d8e2`)                        |
 | 5    | API y red determinista                              | Hecho                                    |
-| 6    | Suites funcionales                                  | Pendiente                                |
+| 6    | Suites funcionales                                  | Hecho                                    |
 | 7    | CI/CD y documentación completa                      | Pendiente                                |
 
 ## Decisiones de seguridad vigentes
@@ -31,18 +31,17 @@ Seguridad: `docs/SECURITY.md`.
 ```bash
 npm run typecheck && npm run lint && npm run format:check
 npm run test:unit     # 23 casos @unit (config, guards y adapters)
-npm run test:web3     # 10 casos del provider mockeado
+npm run test:web3     # 13 casos del provider + 1 contractual opt-in (RPC_URL)
 npm run test:api      # 30 casos @api + 1 contractual opt-in (CONTRACTUAL_API=1)
-npm run test:e2e      # 10 casos @e2e contra la sandbox local
+npm run test:e2e      # 6 conexión + 8 swap contra la sandbox local
 ```
 
-Última verificación: typecheck, lint, format y toda la suite (74 tests):
-73 en verde, 1 contractual en skip.
+Última verificación: typecheck, lint, format y toda la suite (82 tests):
+80 en verde, 2 contractuales en skip.
 
 ## Siguiente paso
 
-Fase 6: suites funcionales — `connect-wallet.spec.ts` y `swap-tokens.spec.ts`
-(@e2e/@smoke, rechazo 4010, saldo insuficiente, timeout), `transaction-state.spec.ts`
-(@web3 solo con RPC) y reorganización de tags/execution independiente (ver
-`docs/plan.md`). Antes de la fase 7, resolver lo pendiente de
-`docs/SECURITY.md` (artefactos de CI y gitleaks).
+Fase 7: CI/CD y documentación completa — `playwright.yml` (Node 20, npm ci,
+navegadores, lint, typecheck, suites), artefactos con la política de `docs/SECURITY.md`
+(trazas sin subir con RPC con llave, retención corta), gitleaks y cierre del
+README.

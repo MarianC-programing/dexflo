@@ -10,7 +10,7 @@ import type { Page } from '@playwright/test';
 import { env } from '../config/env';
 import type { NetworkName } from '../config/networks';
 import type { DexAdapter, SwapButtonState, TxStatus } from '../domain/adapters/dex-adapter';
-import { BasePage } from './base.page';
+import { BasePage, type OpenUrlOptions } from './base.page';
 import { WalletModal } from './wallet-modal.component';
 
 export class SwapPage extends BasePage {
@@ -21,10 +21,11 @@ export class SwapPage extends BasePage {
     this.wallet = new WalletModal(page, adapter);
   }
 
-  async open(network: NetworkName = env.networkName): Promise<void> {
+  async open(network: NetworkName = env.networkName, options: OpenUrlOptions = {}): Promise<void> {
     await this.openUrl(
       this.adapter.swapUrl(network),
       this.locator(this.adapter.selectors.swapButton),
+      options,
     );
   }
 
