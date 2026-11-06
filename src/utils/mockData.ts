@@ -28,18 +28,30 @@ export function toHexNumber(value: number): string {
 }
 
 /**
- * Convierte un importe decimal ("12.5") a wei hex con `decimals` de precisión.
- * Evita binomios flotantes: la conversión es textual (entero + fracción).
+ * Convierte un importe decimal ("12.5") a su unidad base (entero `BigInt`) con
+ * `decimals` de precisión. Evita aritmética de punto flotante: la conversión
+ * es textual (entero + fracción).
+ *
+ * Refactor Fase 5: `toWeiHex` ahora delega aquí, así el parsing decimal tiene
+ * una única fuente (cualquier desviación entre hex y cotizaciones sería un bug
+ * visible al instante).
  */
-export function toWeiHex(amount: string, decimals: number = WEI_DECIMALS): string {
+export function toBaseUnits(amount: string, decimals: number): bigint {
   const trimmed = amount.trim();
   if (!/^(?:\d+)(?:\.\d+)?$/.test(trimmed)) {
     throw new Error(`[mockData] Importe decimal inválido: "${amount}"`);
   }
   const [integerPart, fractionalPart = ''] = trimmed.split('.');
   const paddedFraction = fractionalPart.slice(0, decimals).padEnd(decimals, '0');
-  const wei = BigInt(`${integerPart}${paddedFraction}`);
-  return `0x${wei.toString(16)}`;
+  return BigInt(`${integerPart}${paddedFraction}`);
+}
+
+/**
+ * Convierte un importe decimal ("12.5") a wei hex con `decimals` de precisión.
+ * Evita binomios flotantes: la conversión es textual (entero + fracción).
+ */
+export function toWeiHex(amount: string, decimals: number = WEI_DECIMALS): string {
+  return `0x${toBaseUnits(amount, decimals).toString(16)}`;
 }
 
 // ============================================================================
@@ -192,6 +204,142 @@ export function buildPriceFeedResponse(
 /** Serialización lista para `route.fulfill({ body })`. */
 export function buildPriceFeedJson(overrides: Readonly<Record<string, PriceEntry>> = {}): string {
   return JSON.stringify(buildPriceFeedResponse(overrides));
+}
+
+// ============================================================================
+// Cotizaciones deterministas (Fase 5: routes.ts, Fase 6: e2e)
+// ============================================================================
+
+/**
+ * Precisión editorial de las cotizaciones: 4 decimales, EXACTO lo que
+ * muestra la UI de la sandbox (`amountOut.toFixed(4)`)
+ * así una Fase 6 puede cruzar el payload de /api/quote con el texto del DOM.
+ */
+const QUOTE_DISPLAY_DECIMALS = 4;
+/** Escala interna para acomodar los valores numéricos como enteros exactos. */
+const QUOTE_PRICE_SCALE_DIGITS = 6;
+
+export interface QuoteResponse {
+  readonly tokenIn: string;
+  readonly tokenOut: string;
+  /** Importe de entrada tal cual se pidió (cadena decimal). */
+  readonly amountIn: string;
+  /** Unidades base EXACTAS del token de salida (hex); sin pérdida para el assert. */
+  readonly amountOutHex: string;
+  /** Importe de salida alineado con la UI sandbox (4 decimales, truncado). */
+  readonly amountOut: string;
+  /** Tipo de cambio 1 in = rate out (4 decimales, truncado; igual que la UI). */
+  readonly rate: string;
+}
+
+function tokenBySymbol(symbol: string): MockToken {
+  const token = TOKEN_LIST.find((candidate) => candidate.symbol === symbol);
+  if (token === undefined) {
+    const known = TOKEN_LIST.map((item) => item.symbol).join(', ');
+    throw new Error(`[mockData] Token "${symbol}" no está en TOKEN_LIST (${known}).`);
+  }
+  return token;
+}
+
+function priceEntryFor(symbol: string, feed: PriceFeedResponse): PriceEntry {
+  const coingeckoId = tokenBySymbol(symbol).coingeckoId;
+  const entry: PriceEntry | undefined = feed[coingeckoId];
+  if (entry === undefined) {
+    throw new Error(`[mockData] El feed no incluye precios para "${symbol}" (${coingeckoId}).`);
+  }
+  return entry;
+}
+
+/** Precio (number) a entero escalado: toFixed es determinista (IEEE754/V8). */
+function scaledPrice(value: number, what: string): bigint {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`[mockData] Precio inválido para ${what}: ${value}`);
+  }
+  return toBaseUnits(value.toFixed(QUOTE_PRICE_SCALE_DIGITS), QUOTE_PRICE_SCALE_DIGITS);
+}
+
+/** Pinta la unidad base como decimal con `shownDecimals` dígitos (truncado). */
+function renderBaseAmount(base: bigint, decimals: number, shownDecimals: number): string {
+  if (shownDecimals > decimals) {
+    throw new Error('[mockData] La precisión de render excede los decimales del token.');
+  }
+  if (shownDecimals === 0) {
+    return (base / 10n ** BigInt(decimals)).toString();
+  }
+  const shownUnits = base / 10n ** BigInt(decimals - shownDecimals);
+  const divisor = 10n ** BigInt(shownDecimals);
+  const integerPart = shownUnits / divisor;
+  const fractionalPart = (shownUnits % divisor).toString().padStart(shownDecimals, '0');
+  return `${integerPart}.${fractionalPart}`;
+}
+
+/**
+ * Cotización determinista ETH↔ERC20 exacta por `BigInt`.
+ *
+ * amountOut = amountIn × priceIn / priceOut, en unidades base de cada token.
+ * La división BigInt trunca (floor): es determinista en cualquier plataforma.
+ * Los precios entrantes usan `PriceEntry` de arriba y `amountIn` es una
+ * cadena decimal ("1", "0.5"…), nunca punto flotante de entrada.
+ */
+export function buildQuoteResponse(
+  symbolIn: string,
+  symbolOut: string,
+  amountIn: string,
+  feed: PriceFeedResponse = MOCK_PRICES,
+): QuoteResponse {
+  if (symbolIn === symbolOut) {
+    throw new Error('[mockData] Cotizar exige dos tokens distintos.');
+  }
+  const tokenIn = tokenBySymbol(symbolIn);
+  const tokenOut = tokenBySymbol(symbolOut);
+  const priceIn = priceEntryFor(symbolIn, feed);
+  const priceOut = priceEntryFor(symbolOut, feed);
+  const priceInScaled = scaledPrice(priceIn.usd, symbolIn);
+  const priceOutScaled = scaledPrice(priceOut.usd, symbolOut);
+  if (priceOutScaled === 0n) {
+    throw new Error(`[mockData] Precio nulo para "${symbolOut}": división por cero.`);
+  }
+
+  // out_base = in_base × priceIn × 10^dOut / (10^dIn × priceOut)
+  // (la escala 10^6 del precio queda dentro de `scaledPrice`)
+  const unitsIn = toBaseUnits(amountIn, tokenIn.decimals);
+  const unitsOut =
+    (unitsIn * priceInScaled * 10n ** BigInt(tokenOut.decimals)) /
+    (10n ** BigInt(tokenIn.decimals) * priceOutScaled);
+  const rateScaled = (priceInScaled * 10n ** BigInt(QUOTE_DISPLAY_DECIMALS)) / priceOutScaled;
+
+  return {
+    tokenIn: symbolIn,
+    tokenOut: symbolOut,
+    amountIn,
+    amountOutHex: `0x${unitsOut.toString(16)}`,
+    amountOut: renderBaseAmount(unitsOut, tokenOut.decimals, QUOTE_DISPLAY_DECIMALS),
+    rate: renderBaseAmount(rateScaled, QUOTE_DISPLAY_DECIMALS, QUOTE_DISPLAY_DECIMALS),
+  };
+}
+
+/** Entrada del catálogo servida por la ruta de tokens (Fase 5). */
+export interface MockTokenListEntry {
+  readonly address: string;
+  readonly symbol: string;
+  readonly name: string;
+  readonly decimals: number;
+  /** Las direcciones de TOKEN_LIST están verificadas en mainnet. */
+  readonly chainId: number;
+}
+
+export function buildTokenListResponse(): readonly MockTokenListEntry[] {
+  return TOKEN_LIST.map((token) => ({
+    address: token.address,
+    symbol: token.symbol,
+    name: token.name,
+    decimals: token.decimals,
+    chainId: MOCK_CHAIN_ID,
+  }));
+}
+
+export function buildTokenListJson(): string {
+  return JSON.stringify(buildTokenListResponse());
 }
 
 // ============================================================================

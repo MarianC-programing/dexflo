@@ -118,8 +118,11 @@ const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 /**
  * Valida una URL HTTP(S) sin credenciales embebidas. Los mensajes de error NO
  * repiten el valor recibido: una URL de RPC puede llevar la API key en la ruta.
+ *
+ * Exportada también para los clientes de API de la Fase 5 (src/api/): una
+ * única definición evita divergencias (lección de 5a en docs/SECURITY.md).
  */
-function parseHttpUrl(value: string, variableName: string): URL {
+export function parseHttpUrl(value: string, variableName: string): URL {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(value);
