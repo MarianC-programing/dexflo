@@ -1,0 +1,122 @@
+# CI de web3-dex-automation-suite — Fase 7 (docs/plan.md) bajo la política de
+# secretos/artefactos de docs/SECURITY.md:
+#
+# - Sin secretos ni red real: no se definen ALLOW_MAINNET, RPC_URL ni
+#   PRIVATE_KEY; los casos contractuales (@api y @web3 @integration) quedan en
+#   skip por opt-in y NINGÚN artefacto publicado puede contener una llave.
+# - Los reportes se publican SIEMPRE, incluso si fallan los tests
+#   (`if: always()`), con retención corta (7 días).
+# - `npm ci` y acciones fijadas por el SHA del commit del tag (comentado).
+# - gitleaks escanea el historial completo: sin secretos en commits pasados.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Token sin permisos por defecto: cada job pide lo mínimo (contents: read).
+permissions: {}
+
+jobs:
+  # Calidad estática: falla en segundos, antes de instalar los navegadores.
+  quality:
+    name: Calidad (typecheck · lint · format)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Node 20 y caché de npm
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Dependencias (npm ci)
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Formato
+        run: npm run format:check
+
+  # Suite completa determinista: @unit + @api + @web3 + @e2e contra la sandbox
+  # local. CI=true (lo fija Actions) activa retries=2, workers=2, forbidOnly y
+  # los reporters list/html/junit de playwright.config.ts.
+  tests:
+    name: Suites (unit · api · web3 · e2e)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Node 20 y caché de npm
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Dependencias (npm ci)
+        run: npm ci
+      - name: Navegadores de Playwright (chromium)
+        run: npx playwright install --with-deps chromium
+      # Sin .env por diseño: los valores por defecto ya son seguros (sepolia,
+      # sandbox). Los contractuales registran su skip documentado.
+      - name: Suite completa (npm test)
+        run: npm test
+      - name: Reporte HTML de Playwright
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: warn
+      # Regla de docs/SECURITY.md: este flujo corre sin RPC con llave, así que
+      # ninguna traza puede contener una. Si un día un job @web3 usara un RPC
+      # con llave en secreto, ese job NO debe subir trazas ni vídeo.
+      - name: Artefactos de diagnóstico (trazas/vídeos de fallo)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Reporte JUnit (results/junit.xml)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: junit-report
+          path: results/junit.xml
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Escaneo de secretos sobre TODO el historial (hallazgo 5e, docs/SECURITY.md).
+  # Cuenta personal: no se requiere GITLEAKS_LICENSE (solo organizaciones).
+  gitleaks:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout con historial completo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: gitleaks (acción oficial, runtime Node 24)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Comentarios en PR y artefacto SARIF desactivados: permiso mínimo y
+          # señal por estado del job (un hallazgo rompe el job igualmente).
+          GITLEAKS_ENABLE_COMMENTS: false
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false

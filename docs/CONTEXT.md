@@ -18,7 +18,7 @@ Seguridad: `docs/SECURITY.md`.
 | 4    | Page Objects, adapters y sandbox DEX y componentes  | Hecho (`c05d8e2`)                        |
 | 5    | API y red determinista                              | Hecho                                    |
 | 6    | Suites funcionales                                  | Hecho                                    |
-| 7    | CI/CD y documentación completa                      | Pendiente                                |
+| 7    | CI/CD y documentación completa                      | Hecho                                    |
 
 ## Decisiones de seguridad vigentes
 
@@ -34,14 +34,30 @@ npm run test:unit     # 23 casos @unit (config, guards y adapters)
 npm run test:web3     # 13 casos del provider + 1 contractual opt-in (RPC_URL)
 npm run test:api      # 30 casos @api + 1 contractual opt-in (CONTRACTUAL_API=1)
 npm run test:e2e      # 6 conexión + 8 swap contra la sandbox local
+npm test              # suite completa (playwright test)
 ```
 
 Última verificación: typecheck, lint, format y toda la suite (82 tests):
 80 en verde, 2 contractuales en skip.
 
+## CI (Fase 7)
+
+`.github/workflows/playwright.yml` (push/PR → `main`): job `quality`
+(typecheck/lint/format), job `tests` (`npm ci` → chromium → `npm test`) y
+job `gitleaks` (historial completo). Acciones pinned por SHA del tag;
+artefactos `playwright-report`, `test-results` y `junit-report` con
+`if: always()` y retención de 7 días. Sin secretos: sin `ALLOW_MAINNET`,
+`RPC_URL` ni `PRIVATE_KEY` → contractuales en skip.
+
 ## Siguiente paso
 
-Fase 7: CI/CD y documentación completa — `playwright.yml` (Node 20, npm ci,
-navegadores, lint, typecheck, suites), artefactos con la política de `docs/SECURITY.md`
-(trazas sin subir con RPC con llave, retención corta), gitleaks y cierre del
-README.
+Cerrar la Fase 7 en el repo (rama `feat/fase-7-cicd`): PR hacia `main` con
+run de CI en verde y artefactos publicados; luego, con aprobación del
+usuario, `gh pr merge --merge --delete-branch`.
+
+Tras la Fase 7: retomar la auditoría de seguridad run-1
+(`~/security-audit-skill/dexflo/run-1`) sobre el ref final de `main` —
+re-mapear el coverage ledger contra las versiones vivas desde `7262d90`
+(env.ts, rpc.client.ts, eip1193.ts, sandbox-dapp.ts, page-objects,
+`src/api/`, `src/network/`, suites de la Fase 6), relanzar el crítico
+post-ola 4 y completar las fases 3-6 de la skill.

@@ -3,6 +3,8 @@
 > Revisión: 2026-11-03 · Rama `fix/security-review-fase3`.
 > Alcance: configuración, wallet simulada EIP-1193, capa blockchain (viem),
 > tooling (Husky, `.gitignore`) y dependencias.
+> Fase 7 (2026-11-05): hallazgos 4 y 5e implementados en
+> `.github/workflows/playwright.yml` (ver «Fase 7 — CI/CD» abajo).
 
 ## Resumen de la revisión
 
@@ -11,12 +13,12 @@
 | 1   | `@web3` podía consultar mainnet real por defecto (`NETWORK=mainnet`, RPC viem) | Alto      | Corregido                     |
 | 2   | `PRIVATE_KEY` se cargaba en claro y sin uso                                    | Medio     | Corregido (restringida)       |
 | 3   | `RPC_URL` sin validar; errores repetían el valor de la URL                     | Medio     | Corregido                     |
-| 4   | Trazas/vídeos de Playwright pueden contener la URL del RPC con su llave        | Medio     | Pendiente (Fase 7, ver abajo) |
+| 4   | Trazas/vídeos de Playwright pueden contener la URL del RPC con su llave        | Medio     | Implementado (Fase 7)         |
 | 5a  | Catálogo de RPC (`networks.ts`) y cliente divergían                            | Bajo      | Corregido                     |
 | 5b  | `sameAddress` comparaba chain IDs (nombre engañoso)                            | Bajo      | Corregido (`sameHex`)         |
 | 5c  | `.gitignore` sin `*.pem`, `*.key`, `*.keystore`, `.npmrc`                      | Bajo      | Corregido                     |
 | 5d  | ESLint 8 obsoleto: 16 vulnerabilidades _moderate_ solo en devDependencies      | Bajo      | Pendiente (migrar a ESLint 9) |
-| 5e  | Sin escaneo de secretos automatizado (gitleaks)                                | Bajo      | Pendiente (Fase 7)            |
+| 5e  | Sin escaneo de secretos automatizado (gitleaks)                                | Bajo      | Implementado (Fase 7)         |
 
 Verificado sin hallazgos: historial de Git (2 commits, sin `.env`, claves ni
 mnemónicos), `npm audit --omit=dev` (0 vulnerabilidades), hooks de Husky (no
@@ -49,23 +51,37 @@ envía transacciones reales: devuelve firma/hash constantes).
 
 ### Pruebas
 
-`tests/unit/env.spec.ts` (`npm run test:unit`, tag `@unit`, 15 casos) cubre:
+`tests/unit/env.spec.ts` (`npm run test:unit`, tag `@unit`, 18 casos) cubre:
 red por defecto, bloqueo/opt-in de mainnet, URLs sin fugas, reglas de
 `PRIVATE_KEY` y guard del cliente RPC.
 
+## Fase 7 — CI/CD (implementado)
+
+`.github/workflows/playwright.yml` (push/PR hacia `main`): jobs `quality`
+(typecheck/lint/format), `tests` (toda la suite con chromium) y `gitleaks`
+(escaneo del historial completo). Acciones fijadas por _SHA_ del commit del
+tag y `npm ci`.
+
+- Artefactos (`playwright-report`, `test-results`, `results/junit.xml`)
+  publicados con `if: always()` incluso si fallan los tests; retención corta
+  de 7 días.
+- Sin secretos ni red real en CI: no se definen `ALLOW_MAINNET`, `RPC_URL` ni
+  `PRIVATE_KEY` — los contractuales quedan en skip y los artefactos no pueden
+  contener llaves. La red es `sepolia` por defecto.
+- Regla si el flujo evoluciona: si un job `@web3` usara un RPC con llave (en
+  _secrets_), _ese_ job no debe subir trazas ni vídeo (contendrían la URL
+  completa). La llave jamás en el repositorio.
+- gitleaks (hallazgo 5e): sin comentarios en PR ni artefacto SARIF; un
+  hallazgo rompe el job con el output del CLI. El hook `pre-commit` de
+  gitleaks sigue pendiente como opcional.
+
 ## Pendiente y recomendaciones
 
-### Fase 7 — CI/CD (artefactos y secretos)
+### Mantenimiento
 
-- Las trazas (`trace: 'retain-on-failure'`) guardan las URLs de red completas.
-  Si `RPC_URL` lleva una API key, aparecería en los artefactos. Al publicarlos:
-  - guardar la llave solo en _secrets_ de GitHub Actions;
-  - no subir trazas ni vídeos en el job `@web3` que use RPC con llave;
-  - usar retención corta (p. ej. 7 días). El repositorio es público.
-- En CI no definir `ALLOW_MAINNET`; usar Sepolia o un fork local.
-- Añadir un paso de `gitleaks` (acción oficial) y, opcionalmente, un hook
-  `pre-commit` que lo ejecute sobre los archivos en _staging_.
-- Usar `npm ci` y fijar las acciones por _commit SHA_.
+- Migrar a ESLint 9 (flat config) para retirar la cadena `rimraf`/`flat-cache`
+  marcada por `npm audit`. Es solo de desarrollo; no afecta a la ejecución.
+- Revisar `npm audit` en cada PR.
 
 ### Mantenimiento
 
