@@ -15,6 +15,16 @@ export interface PageDiagnostics {
   readonly pageErrors: readonly string[];
 }
 
+export interface OpenUrlOptions {
+  /**
+   * Intercepción de red instalada DESPUÉS de `adapter.prepare` (Playwright da
+   * prioridad al último handler, es decir LIFO): permite a los E2E de la Fase
+   * 6 sobrescribir payloads puntuales con los overlays de `src/network/routes.ts`
+   * sin alterar el resto de las rutas del adapter.
+   */
+  readonly overlayNetwork?: (page: Page) => Promise<void>;
+}
+
 export class BasePage {
   private readonly consoleErrors: string[] = [];
   private readonly pageErrors: string[] = [];
@@ -37,9 +47,16 @@ export class BasePage {
     return this.page.locator(selector);
   }
 
-  /** Prepara el adapter, navega y espera a que el elemento clave sea visible. */
-  protected async openUrl(url: string, readyLocator: Locator): Promise<void> {
+  /** Prepara el adapter, aplica overlays de red opcionales, navega y espera el estado listo. */
+  protected async openUrl(
+    url: string,
+    readyLocator: Locator,
+    options: OpenUrlOptions = {},
+  ): Promise<void> {
     await this.adapter.prepare(this.page);
+    if (options.overlayNetwork !== undefined) {
+      await options.overlayNetwork(this.page);
+    }
     await this.page.goto(url, { waitUntil: 'domcontentloaded' });
     await expect(readyLocator).toBeVisible();
   }
