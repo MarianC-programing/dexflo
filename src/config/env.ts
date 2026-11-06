@@ -27,6 +27,8 @@ export interface AppConfig {
   readonly networkName: NetworkName;
   /** chainId derivado de la red objetivo. */
   readonly chainId: number;
+  /** DApp objetivo de los E2E: `sandbox` (local, determinista) o `uniswap` (referencia). */
+  readonly dappTarget: DappTarget;
   /** Opt-in explícito para operar contra mainnet (ALLOW_MAINNET); false por defecto. */
   readonly allowMainnet: boolean;
   /** RPC opcional para pruebas @web3 (Fase 3+); null si no se configura. */
@@ -103,14 +105,24 @@ function readEnvBoolean(
   );
 }
 
+export const DAPP_TARGETS = ['sandbox', 'uniswap'] as const;
+export type DappTarget = (typeof DAPP_TARGETS)[number];
+
+function isDappTarget(value: string): value is DappTarget {
+  return (DAPP_TARGETS as readonly string[]).includes(value);
+}
+
 const LOCAL_HOSTNAMES = new Set<string>(['localhost', '127.0.0.1', '[::1]']);
 const PRIVATE_KEY_PATTERN = /^(?:0x)?[0-9a-fA-F]{64}$/;
 
 /**
  * Valida una URL HTTP(S) sin credenciales embebidas. Los mensajes de error NO
  * repiten el valor recibido: una URL de RPC puede llevar la API key en la ruta.
+ *
+ * Exportada también para los clientes de API de la Fase 5 (src/api/): una
+ * única definición evita divergencias (lección de 5a en docs/SECURITY.md).
  */
-function parseHttpUrl(value: string, variableName: string): URL {
+export function parseHttpUrl(value: string, variableName: string): URL {
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(value);
@@ -153,6 +165,13 @@ export function loadConfig(source: Readonly<NodeJS.ProcessEnv> = process.env): A
   }
   const network = getNetwork(networkRawName);
 
+  const dappTargetRaw = readEnvString(source, 'DAPP_TARGET', 'sandbox');
+  if (!isDappTarget(dappTargetRaw)) {
+    throw new Error(
+      `[env] "DAPP_TARGET" desconocido. Valores soportados: ${DAPP_TARGETS.join(', ')}.`,
+    );
+  }
+
   const allowMainnet = readEnvBoolean(source, 'ALLOW_MAINNET', false);
   if (network.name === 'mainnet' && !allowMainnet) {
     throw new Error(
@@ -179,6 +198,7 @@ export function loadConfig(source: Readonly<NodeJS.ProcessEnv> = process.env): A
     baseUrl,
     networkName: network.name,
     chainId: network.chainId,
+    dappTarget: dappTargetRaw,
     allowMainnet,
     rpcUrl,
     headless: readEnvBoolean(source, 'HEADLESS', true),
