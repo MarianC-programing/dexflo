@@ -1,5 +1,8 @@
 # web3-dex-automation-suite (Dexflo)
 
+[![CI](https://github.com/MarianC-programing/dexflo/actions/workflows/playwright.yml/badge.svg)](https://github.com/MarianC-programing/dexflo/actions/workflows/playwright.yml)
+![gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue)
+
 Framework de pruebas E2E y de API para DApps Web3/DEX: **TypeScript + Playwright Test**, con Page Object Model, mockeo determinista del provider EIP-1193 (`window.ethereum`) y capa RPC opcional con [viem](https://viem.sh).
 
 El plan completo de fases y decisiones está en [`docs/plan.md`](docs/plan.md).
@@ -10,7 +13,7 @@ El plan completo de fases y decisiones está en [`docs/plan.md`](docs/plan.md).
 - Playwright Test Runner (headless, retries solo en CI)
 - ESLint + Prettier + Husky (hooks pre-commit / pre-push)
 - viem para validaciones on-chain (Fase 3+)
-- CI/CD: GitHub Actions (Fase 7)
+- CI/CD: GitHub Actions con acciones pinned por SHA, reportes como artefactos y gitleaks (Fase 7)
 
 ## Estado del framework
 
@@ -41,10 +44,66 @@ npm test             # toda la suite
 
 ## Configuración
 
-Copiar `.env.example` a `.env` (no se versiona; ver variables documentadas ahí).
-La configuración se valida de forma tipada en `src/config/env.ts` y las redes en `src/config/networks.ts`.
+Copiar `.env.example` a `.env` (no se versiona). La configuración se valida de forma tipada en `src/config/env.ts` y las redes en `src/config/networks.ts`:
 
-Valores seguros por defecto: `NETWORK=sepolia`; `mainnet` exige `ALLOW_MAINNET=true`. `PRIVATE_KEY` solo se acepta con un `RPC_URL` local (fork/Anvil) y las URLs no admiten credenciales embebidas. Detalles y pendientes en [`docs/SECURITY.md`](docs/SECURITY.md); estado de sesión en [`docs/CONTEXT.md`](docs/CONTEXT.md).
+| Variable                | Por defecto               | Uso                                                                    |
+| ----------------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `BASE_URL`              | `https://app.uniswap.org` | URL de la DApp objetivo.                                               |
+| `NETWORK`               | `sepolia`                 | Red del catálogo (`mainnet`…`sepolia`).                                |
+| `ALLOW_MAINNET`         | `false`                   | Opt-in explícito para `NETWORK=mainnet`.                               |
+| `DAPP_TARGET`           | `sandbox`                 | Adapter E2E: `sandbox` (determinista) · `uniswap` (referencia).        |
+| `RPC_URL`               | —                         | RPC on-chain; sin ella los contractuales `@web3` quedan en skip.       |
+| `PRIVATE_KEY`           | —                         | Wallet efímera; solo con `RPC_URL` local (fork/Anvil); sin logs.       |
+| `CONTRACTUAL_API`       | desactivada               | `1`/`true` activa los contractuales `@api` contra `api.coingecko.com`. |
+| `HEADLESS`              | `true`                    | Headless por defecto (`--headed` lo anula en local).                   |
+| `CI`                    | `false`                   | Actions la activa: retries, workers y reporter JUnit.                  |
+| `TEST_TIMEOUT_MS`       | `45000`                   | Tiempo máximo por test.                                                |
+| `NAVIGATION_TIMEOUT_MS` | `30000`                   | Navegaciones (`goto`).                                                 |
+| `ACTION_TIMEOUT_MS`     | `15000`                   | Acciones (click, fill, combo).                                         |
+| `EXPECT_TIMEOUT_MS`     | `10000`                   | Esperas de `expect` (DOM y red).                                       |
+
+Valores seguros por defecto: `NETWORK=sepolia`; `mainnet` exige `ALLOW_MAINNET=true`. `PRIVATE_KEY` solo se acepta con un `RPC_URL` local (fork/Anvil) y las URLs no admiten credenciales embebidas. En CI no se define ninguna de estas variables (ver [CI](#ci-github-actions)). Detalles en [`docs/SECURITY.md`](docs/SECURITY.md); estado de sesión en [`docs/CONTEXT.md`](docs/CONTEXT.md).
+
+## CI (GitHub Actions)
+
+Workflow único en `.github/workflows/playwright.yml`; se dispara en _push_ y
+_pull request_ hacia `main` (y a mano con `workflow_dispatch`) sobre
+`ubuntu-latest` con Node 20:
+
+| Job        | Contenido                                                                    |
+| ---------- | ---------------------------------------------------------------------------- |
+| `quality`  | `typecheck` · `lint` · `format:check` — falla rápido, sin navegadores        |
+| `tests`    | `npm ci` → chromium → `npm test` (toda la suite; retries y JUnit solo en CI) |
+| `gitleaks` | escaneo de secretos sobre el historial completo (`fetch-depth: 0`)           |
+
+Política aplicada (detalle en [`docs/SECURITY.md`](docs/SECURITY.md)):
+
+- **Sin secretos ni red real**: el flujo no define `ALLOW_MAINNET`, `RPC_URL`
+  ni `PRIVATE_KEY` — los casos contractuales quedan en skip (opt-in por
+  entorno) y ningún artefacto publicado puede contener una llave.
+- **Reportes siempre**: `playwright-report/`, `test-results/` (trazas,
+  screenshots y vídeo de fallo) y `results/junit.xml` se suben con
+  `if: always()` aunque falle la suite; retención de 7 días.
+- **Suministro determinista**: `npm ci` y acciones fijadas por el SHA del
+  commit del tag — el tag va comentado en cada `uses` (`checkout v7.0.1`,
+  `setup-node v7.1.0`, `upload-artifact v7.0.2`, `gitleaks-action v3.0.0`).
+
+Para diagnosticar un fallo de CI: descarga los artefactos `test-results`
+(traza/screenshot/vídeo) o `playwright-report` del run y ábrelos con
+`npx playwright show-trace <traza>` / `npx playwright show-report <carpeta>`.
+
+## Diagnóstico
+
+- **Local**: `npx playwright show-report` abre el HTML de la última corrida;
+  los artefactos de fallo quedan en `test-results/` (`retain-on-failure`:
+  traza, screenshot y vídeo) junto a `error-context.md`.
+- **JUnit**: `results/junit.xml` se genera solo cuando `CI=true` (GitHub
+  Actions lo define automáticamente; ver [CI](#ci-github-actions)).
+- **Errores silenciosos**: cada `BasePage` acumula errores de consola y
+  `pageerror` — los specs terminan con `expectNoPageErrors()` para que un
+  error de la DApp rompa el test y no pase callado.
+- **Timeouts y saneamiento** (`forbidOnly`, retries) se controlan desde
+  `src/config/env.ts` y `playwright.config.ts`.
 
 ## Fixture de wallet (Fase 3)
 
