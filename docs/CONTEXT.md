@@ -1,6 +1,6 @@
 # Dexflo — contexto del proyecto y estado de la sesión
 
-> Última actualización: 2026-11-05 · Leer antes de continuar (regla 1 del `CLAUDE.md` general).
+> Última actualización: 2026-11-06 · Leer antes de continuar (regla 1 del `CLAUDE.md` general).
 
 ## Qué es
 
@@ -10,15 +10,21 @@ Seguridad: `docs/SECURITY.md`.
 
 ## Estado por fase
 
-| Fase | Alcance                                             | Estado                                   |
-| ---- | --------------------------------------------------- | ---------------------------------------- |
-| 1-2  | Base, tooling, `env`, `networks`, `mockData`        | Hecho                                    |
-| 3    | Provider EIP-1193 simulado + capa blockchain (viem) | Hecho                                    |
-| —    | Revisión de seguridad de fases 1-3 (`SECURITY.md`)  | Hecho (rama `fix/security-review-fase3`) |
-| 4    | Page Objects, adapters y sandbox DEX y componentes  | Hecho (`c05d8e2`)                        |
-| 5    | API y red determinista                              | Hecho                                    |
-| 6    | Suites funcionales                                  | Hecho                                    |
-| 7    | CI/CD y documentación completa                      | Hecho                                    |
+| Fase | Alcance                                                | Estado                                   |
+| ---- | ------------------------------------------------------ | ---------------------------------------- |
+| 1-2  | Base, tooling, `env`, `networks`, `mockData`           | Hecho                                    |
+| 3    | Provider EIP-1193 simulado + capa blockchain (viem)    | Hecho                                    |
+| —    | Revisión de seguridad de fases 1-3 (`SECURITY.md`)     | Hecho (rama `fix/security-review-fase3`) |
+| 4    | Page Objects, adapters y sandbox DEX y componentes     | Hecho (`c05d8e2`)                        |
+| 5    | API y red determinista                                 | Hecho                                    |
+| 6    | Suites funcionales                                     | Hecho                                    |
+| 7    | CI/CD y documentación completa                         | Hecho (PR #4)                            |
+| 8    | Endurecimiento (auditoría, `main` protegida, ESLint 9) | Siguiente                                |
+| 9    | Verificación real (Uniswap, contractuales programados) | Pendiente                                |
+| 10   | Módulo Haskell `dexflo-report`                         | Pendiente                                |
+| 11   | Dashboard estático (GitHub Pages)                      | Pendiente                                |
+
+Roadmap de las fases 8-11: `docs/ROADMAP.md`.
 
 ## Decisiones de seguridad vigentes
 
@@ -51,13 +57,10 @@ artefactos `playwright-report`, `test-results` y `junit-report` con
 
 ## Siguiente paso
 
-Cerrar la Fase 7 en el repo (rama `feat/fase-7-cicd`): PR hacia `main` con
-run de CI en verde y artefactos publicados; luego, con aprobación del
-usuario, `gh pr merge --merge --delete-branch`.
-
-Tras la Fase 7: retomar la auditoría de seguridad run-1
-(`~/security-audit-skill/dexflo/run-1`) sobre el ref final de `main` —
+Fase 8 (ver `docs/ROADMAP.md`): retomar la auditoría de seguridad run-1
+(`~/security-audit-skill/dexflo/run-1`) sobre el ref actual de `main` —
 re-mapear el coverage ledger contra las versiones vivas desde `7262d90`
-(env.ts, rpc.client.ts, eip1193.ts, sandbox-dapp.ts, page-objects,
+(`env.ts`, `rpc.client.ts`, `eip1193.ts`, `sandbox-dapp.ts`, page-objects,
 `src/api/`, `src/network/`, suites de la Fase 6), relanzar el crítico
-post-ola 4 y completar las fases 3-6 de la skill.
+post-ola 4 y completar las fases 3-6 de la skill. Después: proteger `main`
+(requiere autorización explícita), migrar a ESLint 9 y limpiar docs y ramas.
