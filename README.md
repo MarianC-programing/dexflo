@@ -25,7 +25,13 @@ El plan completo de fases y decisiones está en [`docs/plan.md`](docs/plan.md).
 | 4    | Page Objects, adapters y sandbox DEX local                              | ✅        |
 | 5    | API y red determinista (`routes.ts`, cliente CoinGecko)                 | ✅        |
 | 6    | Suites funcionales (`@smoke`, `@e2e`, `@api`, `@web3`)                  | ✅        |
-| 7    | CI/CD (GitHub Actions) y documentación completa                         | pendiente |
+| 7    | CI/CD (GitHub Actions) y documentación completa                         | ✅        |
+| 8    | Endurecimiento: auditoría, protección de `main`, ESLint 9               | pendiente |
+| 9    | Verificación real: adapter Uniswap y contractuales programados          | pendiente |
+| 10   | Módulo Haskell `dexflo-report` (reportes desde JUnit)                   | pendiente |
+| 11   | Dashboard estático de resultados (GitHub Pages)                         | pendiente |
+
+Las fases 8 a 11 están detalladas en [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Puesta en marcha
 

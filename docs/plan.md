@@ -1,5 +1,7 @@
 # Plan Modular de Dexflo
 
+> Plan original (fases 1-7, completadas). Las fases siguientes están en [`ROADMAP.md`](ROADMAP.md).
+
 ## Objetivo
 
 Construir `web3-dex-automation-suite`, un framework TypeScript + Playwright para validar una DApp DEX de forma automatizada, determinista y preparada para CI/CD.
