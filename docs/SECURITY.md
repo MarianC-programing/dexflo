@@ -83,12 +83,6 @@ tag y `npm ci`.
   marcada por `npm audit`. Es solo de desarrollo; no afecta a la ejecución.
 - Revisar `npm audit` en cada PR.
 
-### Mantenimiento
-
-- Migrar a ESLint 9 (flat config) para retirar la cadena `rimraf`/`flat-cache`
-  marcada por `npm audit`. Es solo de desarrollo; no afecta a la ejecución.
-- Revisar `npm audit` en cada PR.
-
 ## Cómo reportar un problema
 
 Abre un _issue_ privado (Security → Report a vulnerability) en el repositorio.

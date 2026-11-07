@@ -57,10 +57,14 @@ artefactos `playwright-report`, `test-results` y `junit-report` con
 
 ## Siguiente paso
 
-Fase 8 (ver `docs/ROADMAP.md`): retomar la auditoría de seguridad run-1
-(`~/security-audit-skill/dexflo/run-1`) sobre el ref actual de `main` —
-re-mapear el coverage ledger contra las versiones vivas desde `7262d90`
-(`env.ts`, `rpc.client.ts`, `eip1193.ts`, `sandbox-dapp.ts`, page-objects,
-`src/api/`, `src/network/`, suites de la Fase 6), relanzar el crítico
-post-ola 4 y completar las fases 3-6 de la skill. Después: proteger `main`
-(requiere autorización explícita), migrar a ESLint 9 y limpiar docs y ramas.
+Fase 8 (ver `docs/ROADMAP.md`), y su primer punto es cerrar la auditoría de
+seguridad run-1 (`~/security-audit-skill/dexflo/run-1`). Estado real del run:
+ledger re-mapeado al ref vivo (`5c38156`) con la evidencia previa archivada en
+los intentos de cada unidad — 34 unidades y validador de la skill en verde —
+y crítico post-ola 4 aplicado (1 unidad nueva de docs, 1 pista resuelta por
+fuente, exclusiones refrescadas por el nuevo carril CI/PR). Pendiente del
+run: ola 5 de hunters sobre las 30 unidades `planned`, crítico post-ola 5 y
+crítico final-clean, y las fases 3-6 de la skill (validación de candidatos,
+`findings.json`, verificación independiente y reportes). Después: proteger
+`main` (requiere autorización explícita), migrar a ESLint 9 y limpiar ramas
+locales.
